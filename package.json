@@ -4,6 +4,7 @@
   "description": "cycle-restart built from the ground up for xstream",
   "main": "index.js",
   "scripts": {
+    "start": "babel-node example/server.js",
     "test": "mocha --compilers js:babel-core/register",
     "test/auto": "mocha --compilers js:babel-core/register -R min --watch"
   },
@@ -18,11 +19,15 @@
   },
   "homepage": "https://github.com/cyclejs/recycle",
   "devDependencies": {
+    "@cycle/dom": "^10.0.4",
     "@cycle/xstream-run": "^3.0.3",
+    "babel-cli": "^6.10.1",
     "babel-core": "^6.10.4",
     "babel-preset-es2015": "^6.9.0",
     "babelify": "^7.3.0",
     "browserify": "^13.0.1",
+    "browserify-hmr": "^0.3.1",
+    "budo": "^8.3.0",
     "chalk": "^1.1.3",
     "lodash": "^4.13.1",
     "mocha": "^2.5.3",

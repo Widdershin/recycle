@@ -90,9 +90,11 @@ describe('recycle', () => {
       expectedNewCount:  fromDiagram('              0---1--2--3---|')
     };
 
-    const drivers = {
+    const driversFn = () => ({
       click$: recyclable(() => streams.clickInput)
-    };
+    });
+
+    let drivers = driversFn();
 
     const {sinks, sources, run} = Cycle(main, drivers);
 
@@ -103,7 +105,7 @@ describe('recycle', () => {
         done(err);
       }
 
-      const newSinksAndSources = recycle(main, drivers, {sinks, sources, dispose});
+      const newSinksAndSources = recycle(main, driversFn(), drivers, {sinks, sources, dispose});
 
       setTimeout(() => {
         expectEqual(streams.expectedNewCount, newSinksAndSources.sinks.count$, done, startTime);
@@ -126,9 +128,11 @@ describe('recycle', () => {
       expectedNewCount:  fromDiagram('              0---2--4--6---|')
     };
 
-    const drivers = {
+    const driversFn = () => ({
       click$: recyclable(() => ({times: (multiplier) => streams.clickInput.map(i => i * multiplier)}))
-    };
+    });
+
+    const drivers = driversFn();
 
     const {sinks, sources, run} = Cycle(main, drivers);
 
@@ -139,7 +143,7 @@ describe('recycle', () => {
         done(err);
       }
 
-      const newSinksAndSources = recycle(main, drivers, {sinks, sources, dispose});
+      const newSinksAndSources = recycle(main, driversFn(), drivers, {sinks, sources, dispose});
 
       setTimeout(() => {
         assert.equal(drivers.click$.log.length, 3);

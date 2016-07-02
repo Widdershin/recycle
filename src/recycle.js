@@ -13,37 +13,62 @@ function isStream (value) {
   return !!value && (isFunction(value.subcribe) || isFunction(value.addListener));
 }
 
+function isArray (array) {
+  return Array.isArray(array);
+}
+
 const SourceType = either({
-  'object': (sources) => isObject(sources) && !isStream(sources),
+  'object': (sources) => isObject(sources) && !isArray(sources) && !isStream(sources),
   'stream': isStream,
-  'function': isFunction
+  'function': isFunction,
+  'array': isArray,
+  'undefined': (val) => typeof val === 'undefined'
 });
 
-export function recycle (app, drivers, {sources, sinks, dispose}) {
+export function recycler (Cycle, app, driversFactory) {
+  let drivers = driversFactory();
+  let {sinks, sources, run} = Cycle(app, drivers);
+
+  let dispose = run();
+
+  return (app) => {
+    let newDrivers = driversFactory();
+    let newSinksSourceDispose = recycle(app, driversFactory(), drivers, {sources, sinks, dispose});
+
+    sinks = newSinksSourceDispose.sinks;
+    sources = newSinksSourceDispose.sources;
+    dispose = newSinksSourceDispose.dispose;
+  };
+}
+
+export function recycle (app, drivers, oldDrivers, {sources, sinks, dispose}) {
   dispose();
 
   const {run, sinks: newSinks, sources: newSources} = Cycle(app, drivers);
 
-  run();
+  const newDispose = run();
 
   Object.keys(drivers).forEach(driverName => {
     const driver = drivers[driverName];
 
-    driver.replayLog();
+    driver.replayLog(oldDrivers[driverName].log);
   });
 
-  return {sinks: newSinks, sources: newSources};
+  return {sinks: newSinks, sources: newSources, dispose: newDispose};
 }
 
 export function recyclable (driver) {
-  const log = [];
+  let log = [];
   let proxySources = {};
+  let replaying = false;
 
   function logStream (stream, identifier) {
     proxySources[identifier] = stream;
 
     return stream.debug(event => {
-      log.push({identifier, event, time: now()});
+      if (!replaying) {
+        log.push({identifier, event, time: now()});
+      }
     });
   }
 
@@ -55,7 +80,9 @@ export function recyclable (driver) {
       return source.when({
         'object': (value) => logSourceObject(value, funcIdentifier),
         'stream': (stream) => logStream(stream, funcIdentifier),
-        'function': (func) => logSourceFunction(func, funcIdentifier)
+        'function': (func) => logSourceFunction(func, funcIdentifier),
+        'array': array => array,
+        'undefined': val => val
       });
     };
   }
@@ -63,7 +90,7 @@ export function recyclable (driver) {
   function logSourceObject (sources, identifier = '') {
     const newSources = {};
 
-    Object.keys(sources).forEach(sourceProperty => {
+    for (const sourceProperty in sources) {
       const value = SourceType(sources[sourceProperty]);
 
       const propertyIdentifier = identifier + '/' + sourceProperty;
@@ -71,11 +98,17 @@ export function recyclable (driver) {
       const loggedSource = value.when({
         'object': (value) => logSourceObject(value, propertyIdentifier),
         'stream': (stream) => logStream(stream, propertyIdentifier),
-        'function': (func) => logSourceFunction(func, propertyIdentifier)
+        'function': (func) => logSourceFunction(func.bind(sources), propertyIdentifier),
+        'array': array => array,
+        'undefined': val => val
       });
 
       newSources[sourceProperty] = loggedSource;
-    });
+
+      if (sourceProperty === '_namespace') {
+        newSources[sourceProperty] = sources[sourceProperty];
+      }
+    }
 
     return newSources;
   }
@@ -86,14 +119,22 @@ export function recyclable (driver) {
     return sources.when({
       'object': (sources) => logSourceObject(sources),
       'stream': (source$) => logStream(source$, ':root'),
-      'function': (func) => logSourceFunction(func, ':root')
+      'function': (func) => logSourceFunction(func, ':root'),
+      'array': (array) => array,
+      'undefined': val => val
     });
   }
 
-  recyclableDriver.replayLog = function replayLog () {
+  recyclableDriver.replayLog = function replayLog (newLog) {
+    replaying = true;
+
+    log = newLog;
+
     log.forEach((logEvent) => {
       proxySources[logEvent.identifier].shamefullySendNext(logEvent.event);
     });
+
+    replaying = false;
   };
 
   recyclableDriver.log = log;
@@ -113,15 +154,26 @@ function either (states) {
         }
       });
 
+      let called = 0;
+      let returnValue;
+
       for (const state of Object.keys(states)) {
         const stateValidator = states[state];
 
-        if (stateValidator(value)) {
-          return handlers[state](value);
+        if (stateValidator(value) && called < 1) {
+          returnValue = handlers[state](value);
+
+          called += 1;
         }
       }
 
-      throw new Error(`Unhandled possible type: ${value}`);
-    }
+      if (called === 0) {
+        throw new Error(`Unhandled possible type: ${value}`);
+      }
+
+      return returnValue;
+    },
+
+    _value: value
   });
 }
