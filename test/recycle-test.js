@@ -86,7 +86,6 @@ describe('recycle', () => {
 
     const streams = {
       clickInput:        fromDiagram('----1--1--1-----------------|'),
-      additionalInput:   fromDiagram('----------------------------|'),
       expectedCount:     fromDiagram('0---1--2--3---|             '),
       expectedNewCount:  fromDiagram('              0---1--2--3---|')
     };
@@ -108,7 +107,45 @@ describe('recycle', () => {
 
       setTimeout(() => {
         expectEqual(streams.expectedNewCount, newSinksAndSources.sinks.count$, done, startTime);
-      }, 100);
+      }, 60);
+    });
+  });
+
+  it('handles drivers that return objects as sources', (done) => {
+    function main ({click$}) {
+      const count$ = click$.times(2).fold((total, value) => total + value, 0);
+
+      return {
+        count$
+      };
+    }
+
+    const streams = {
+      clickInput:        fromDiagram('----1--1--1-----------------|'),
+      expectedCount:     fromDiagram('0---2--4--6---|             '),
+      expectedNewCount:  fromDiagram('              0---2--4--6---|')
+    };
+
+    const drivers = {
+      click$: recyclable(() => ({times: (multiplier) => streams.clickInput.map(i => i * multiplier)}))
+    };
+
+    const {sinks, sources, run} = Cycle(main, drivers);
+
+    const dispose = run();
+
+    const startTime = expectEqual(streams.expectedCount, sinks.count$, (err) => {
+      if (err) {
+        done(err);
+      }
+
+      const newSinksAndSources = recycle(main, drivers, {sinks, sources, dispose});
+
+      setTimeout(() => {
+        assert.equal(drivers.click$.log.length, 3);
+
+        expectEqual(streams.expectedNewCount, newSinksAndSources.sinks.count$, done, startTime);
+      }, 60);
     });
   });
 });
