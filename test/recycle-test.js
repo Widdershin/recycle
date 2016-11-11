@@ -1,5 +1,5 @@
 /* globals describe, it */
-import {recycle, recyclable} from '../src/recycle';
+import {recycle} from '../src/recycle';
 import assert from 'assert';
 import fromDiagram from 'xstream/extra/fromDiagram';
 import Cycle from '@cycle/xstream-run';
@@ -91,7 +91,7 @@ describe('recycle', () => {
     };
 
     const driversFn = () => ({
-      click$: recyclable(() => streams.clickInput)
+      click$: () => streams.clickInput
     });
 
     let drivers = driversFn();
@@ -129,7 +129,7 @@ describe('recycle', () => {
     };
 
     const driversFn = () => ({
-      click$: recyclable(() => ({times: (multiplier) => streams.clickInput.map(i => i * multiplier)}))
+      click$: () => ({times: (multiplier) => streams.clickInput.map(i => i * multiplier)})
     });
 
     const drivers = driversFn();

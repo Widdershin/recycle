@@ -25,7 +25,19 @@ const SourceType = either({
   'undefined': (val) => typeof val === 'undefined'
 });
 
+function wrapDrivers (driversFactory) {
+  return () => {
+    let drivers = driversFactory();
+    Object.keys(drivers).forEach(function (key) {
+      drivers[key] = recyclable(drivers[key]);
+    });
+    return drivers;
+  };
+}
+
 export function recycler (Cycle, app, driversFactory) {
+  driversFactory = wrapDrivers(driversFactory);
+
   let drivers = driversFactory();
   let {sinks, sources, run} = Cycle(app, drivers);
 
@@ -33,7 +45,7 @@ export function recycler (Cycle, app, driversFactory) {
 
   return (app) => {
     let newDrivers = driversFactory();
-    let newSinksSourceDispose = recycle(app, driversFactory(), drivers, {sources, sinks, dispose});
+    let newSinksSourceDispose = recycle(app, newDrivers, drivers, {sources, sinks, dispose});
 
     sinks = newSinksSourceDispose.sinks;
     sources = newSinksSourceDispose.sources;

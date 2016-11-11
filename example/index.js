@@ -1,11 +1,11 @@
 import Cycle from '@cycle/xstream-run';
 import {makeDOMDriver} from '@cycle/dom';
-import {recycler, recyclable} from '../src/recycle';
+import {recycler} from '../src/recycle';
 
 var app = require('./counter').default;
 
 const drivers = () => ({
-  DOM: recyclable(makeDOMDriver('.app'))
+  DOM: makeDOMDriver('.app')
 });
 
 const recycle = recycler(Cycle, app, drivers);
